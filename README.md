@@ -39,14 +39,14 @@ Membangun sistem pelacakan GPS berbasis AI yang:
 | Komponen | Fungsi | Status |
 |----------|--------|--------|
 | **ESP32** | Mikrokontroler untuk pembacaan GPS dan transmisi MQTT | ✅ Ready |
-| **GPS NEO-6M** | Sensor GPS untuk mendapatkan koordinat (lat, lon, altitude) | ✅ Ready |
+| **GPS NEO-7M** | Sensor GPS untuk mendapatkan koordinat (lat, lon, altitude) | ✅ Ready |
 | **MQTT Broker** | Message broker untuk komunikasi real-time ESP32 → Flask | ✅ Ready |
 
 ### �🛠️ **Software Stack**
 
 | Kategori | Teknologi | Fungsi |
 |----------|-----------|--------|
-| **Hardware Interface** | ESP32 + GPS NEO-6M | Sensor GPS dan data acquisition |
+| **Hardware Interface** | ESP32 + GPS NEO-7M | Sensor GPS dan data acquisition |
 | **Communication** | MQTT (Mosquitto/Paho) | Real-time data streaming dari hardware |
 | **AI/ML Backend** | Python Flask | Server AI untuk prediksi & klasifikasi |
 | **Machine Learning** | Scikit-learn, Statsmodels | VAR, Random Forest, DBSCAN |
@@ -68,7 +68,7 @@ Membangun sistem pelacakan GPS berbasis AI yang:
 
 ```mermaid
 graph TB
-    A[ESP32 + GPS NEO-6M] -->|MQTT Publish| B[MQTT Broker]
+    A[ESP32 + GPS NEO-7M] -->|MQTT Publish| B[MQTT Broker]
     B -->|MQTT Subscribe| C[Flask AI Server]
     
     C --> D[VAR: Location Prediction]
@@ -85,7 +85,7 @@ graph TB
 
 **Data Flow:**
 ```
-[ESP32 + GPS NEO-6M] → [MQTT] → [Flask AI Server] → [Mobile App] → [User Interface]
+[ESP32 + GPS NEO-7M] → [MQTT] → [Flask AI Server] → [Mobile App] → [User Interface]
 ```
 
 ---
