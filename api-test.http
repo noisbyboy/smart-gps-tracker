@@ -1,0 +1,188 @@
+### Smart GPS Tracker API Tests
+### Make sure Flask server is running on http://localhost:5000
+
+# Variables
+@baseUrl = http://localhost:5000
+@contentType = application/json
+
+###
+# 1. Test Server Status - GET /
+GET {{baseUrl}}/
+
+###
+# 2. Test Stats Endpoint (Empty Database) - GET /stats
+GET {{baseUrl}}/stats
+
+###
+# 3. Test Predict Endpoint with Sample GPS Data - POST /predict
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2088,
+  "lon": 106.8456,
+  "speed": 25.5,
+  "timestamp": 1640995200
+}
+
+###
+# 4. Test Predict with Walking Speed - POST /predict
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2090,
+  "lon": 106.8458,
+  "speed": 5.0,
+  "timestamp": 1640995260
+}
+
+###
+# 5. Test Predict with Cycling Speed - POST /predict
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2092,
+  "lon": 106.8460,
+  "speed": 15.0,
+  "timestamp": 1640995320
+}
+
+###
+# 6. Test Predict with Motor Speed - POST /predict
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2094,
+  "lon": 106.8462,
+  "speed": 40.0,
+  "timestamp": 1640995380
+}
+
+###
+# 7. Test Predict with Car Speed - POST /predict
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2096,
+  "lon": 106.8464,
+  "speed": 60.0,
+  "timestamp": 1640995440
+}
+
+###
+# 8. Test Predict with Stationary - POST /predict
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2098,
+  "lon": 106.8466,
+  "speed": 0.0,
+  "timestamp": 1640995500
+}
+
+###
+# 9. Test Stats After Adding Data - GET /stats
+GET {{baseUrl}}/stats
+
+###
+# 10. Test History Endpoint - GET /history
+GET {{baseUrl}}/history?limit=10
+
+###
+# 11. Test History with Activity Filter - GET /history
+GET {{baseUrl}}/history?activity=motor&limit=5
+
+###
+# 12. Test Activity Classification Endpoint - POST /activity
+POST {{baseUrl}}/activity
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2100,
+  "lon": 106.8468,
+  "speed": 30.0
+}
+
+###
+# 13. Test Anomaly Detection Endpoint - POST /anomaly
+POST {{baseUrl}}/anomaly
+Content-Type: {{contentType}}
+
+{
+  "current_location": {
+    "lat": -6.2102,
+    "lon": 106.8470,
+    "speed": 25.0
+  },
+  "route_history": [
+    {"lat": -6.2088, "lon": 106.8456, "speed": 25.5},
+    {"lat": -6.2090, "lon": 106.8458, "speed": 5.0},
+    {"lat": -6.2092, "lon": 106.8460, "speed": 15.0}
+  ]
+}
+
+###
+# 14. Test Invalid Predict Request (Missing Fields)
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "speed": 25.0
+}
+
+###
+# 15. Test Invalid Activity Request (Missing Speed)
+POST {{baseUrl}}/activity
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2100,
+  "lon": 106.8468
+}
+
+###
+# 16. Test 404 Error
+GET {{baseUrl}}/nonexistent
+
+###
+# 17. Batch Test - Add Multiple GPS Points for Better Stats
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2104,
+  "lon": 106.8472,
+  "speed": 8.0,
+  "timestamp": 1640995600
+}
+
+###
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2106,
+  "lon": 106.8474,
+  "speed": 12.0,
+  "timestamp": 1640995660
+}
+
+###
+POST {{baseUrl}}/predict
+Content-Type: {{contentType}}
+
+{
+  "lat": -6.2108,
+  "lon": 106.8476,
+  "speed": 45.0,
+  "timestamp": 1640995720
+}
+
+###
+# 18. Final Stats Check After All Tests
+GET {{baseUrl}}/stats
