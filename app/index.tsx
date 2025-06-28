@@ -1,7 +1,7 @@
 // File: app/index.tsx
 
 import { router, useFocusEffect, useNavigation } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import ActivityCard from '../components/ActivityCard';
@@ -11,7 +11,7 @@ import PredictionMarker from '../components/PredictionMarker';
 import { GPSData, PredictionResponse } from '../utils/types';
 
 // API Configuration
-const API_BASE_URL = 'http://192.168.18.41:5000';
+const API_BASE_URL = 'http://192.168.18.12:5000';
 
 export default function HomeScreen() {
   const navigation = useNavigation();

@@ -42,25 +42,25 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity }) => {
         return 'Motor';
       case 'car':
       case 'driving':
-        return 'Mobil';
+        return 'Car';
       case 'walking':
       case 'walk':
-        return 'Jalan';
+        return 'Walking';
       case 'running':
       case 'run':
-        return 'Lari';
+        return 'Running';
       case 'cycling':
       case 'bike':
-        return 'Sepeda';
+        return 'Cycling';
       case 'bus':
         return 'Bus';
       case 'train':
-        return 'Kereta';
+        return 'Train';
       case 'still':
       case 'stationary':
-        return 'Diam';
+        return 'Stationary';
       default:
-        return activityType;
+        return activityType.charAt(0).toUpperCase() + activityType.slice(1);
     }
   };
 
@@ -69,7 +69,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity }) => {
         <Text style={styles.icon}>{getActivityIcon(safeActivity)}</Text>
       </View>
       <View style={styles.textContainer}>
-        <Text style={styles.label}>Aktivitas</Text>
+        <Text style={styles.label}>Activity</Text>
         <Text style={styles.activity}>{getActivityLabel(safeActivity)}</Text>
       </View>
     </View>

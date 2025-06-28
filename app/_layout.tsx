@@ -68,13 +68,6 @@ export default function Layout() {
         }} 
       />
       <Stack.Screen 
-        name="history_new" 
-        options={{
-          title: "📍 GPS History",
-          headerBackVisible: true,
-        }} 
-      />
-      <Stack.Screen 
         name="(tabs)" 
         options={{
           headerShown: false,

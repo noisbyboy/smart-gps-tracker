@@ -36,7 +36,7 @@ class ActivityClassifier:
             speed_kmh = float(current_gps.get('speed', 0))
             
             # Speed-based activity classification with improved thresholds
-            if speed_kmh < 2.0:  # Threshold untuk GPS noise saat diam
+            if speed_kmh < 2.5:  # Threshold untuk GPS noise saat diam
                 return 'stationary'
             elif speed_kmh < 6.0:  # Typical walking speed 3-5 km/h
                 return 'walking'

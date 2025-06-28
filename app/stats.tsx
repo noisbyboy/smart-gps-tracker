@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-const API_URL = 'http://192.168.18.41:5000/stats';
+const API_URL = 'http://192.168.18.12:5000/stats';
 const { width } = Dimensions.get('window');
 
 interface StatItem {
@@ -127,7 +127,7 @@ const StatsScreen = () => {  const router = useRouter();
         {icon && <Text style={styles.statIcon}>{icon}</Text>}
         <Text style={styles.statLabelText}>{label}</Text>
       </View>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statValue}>{String(value)}</Text>
     </View>
   );
 
@@ -146,7 +146,7 @@ const StatsScreen = () => {  const router = useRouter();
             {icon && <Text style={styles.statIcon}>{icon}</Text>}
             <Text style={styles.progressLabelText}>{label}</Text>
           </View>
-          <Text style={styles.progressValue}>{value}</Text>
+          <Text style={styles.progressValue}>{String(value)}</Text>
         </View>
         <View style={styles.progressBarBg}>
           <View 
@@ -214,7 +214,7 @@ const StatsScreen = () => {  const router = useRouter();
           {data.map((item, index) => (
             <View key={index} style={styles.legendItem}>
               <View style={[styles.legendColor, { backgroundColor: item.color }]} />
-              <Text style={styles.legendText}>{item.label}: {item.value}</Text>
+              <Text style={styles.legendText}>{item.label}: {String(item.value)}</Text>
             </View>
           ))}
         </View>

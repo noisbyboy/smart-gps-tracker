@@ -3,7 +3,7 @@ import axios from 'axios';
 import { GPSData, PredictionResponse } from './types';
 
 const api = axios.create({
-  baseURL: 'http://192.168.18.41:5000', // Updated IP address
+  baseURL: 'http://192.168.18.12:5000', // Updated IP address to match current device IP
   timeout: 5000,
 });
 
@@ -52,11 +52,11 @@ export const fetchGPSHistory = async (limit: number = 50): Promise<GPSData[]> =>
 
 export const fetchRouteHistory = async () => {
   try {
-    console.log('fetchRouteHistory: Making request to', api.defaults.baseURL + '/history');
-    const response = await api.get('/history');
+    console.log('fetchRouteHistory: Making request to', api.defaults.baseURL + '/routes');
+    const response = await api.get('/routes');
     console.log('fetchRouteHistory: Response status', response.status);
     console.log('fetchRouteHistory: Response data structure', Object.keys(response.data));
-    return response.data.data || response.data; // Handle both response formats
+    return response.data.routes || response.data; // Handle both response formats
   } catch (error) {
     console.error('Error fetching route history:', error);
     if (error && typeof error === 'object' && 'response' in error) {

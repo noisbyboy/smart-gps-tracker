@@ -130,6 +130,13 @@ def home():
                 <code>Returns: activity distribution, anomaly counts, route summaries</code>
             </div>
             
+            <div class="endpoint">
+                <span class="method">GET</span>
+                <strong>/routes</strong><br>
+                Get route-based history by grouping GPS points into meaningful trips<br>
+                <code>Query: ?limit=10</code>
+            </div>
+            
             <h3>🚀 Quick Test</h3>
             <p>Test the API with curl:</p>
             <code>
@@ -342,6 +349,147 @@ def test_connection():
         'client_ip': request.environ.get('REMOTE_ADDR')
     })
 
+@app.route('/routes', methods=['GET'])
+def get_routes():
+    """Get route-based history by grouping GPS points into meaningful trips"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        
+        conn = sqlite3.connect('gps_data.db')
+        cursor = conn.cursor()
+        
+        # Get GPS data ordered by timestamp
+        cursor.execute('''
+            SELECT id, latitude, longitude, speed, timestamp, activity, is_anomaly, created_at
+            FROM gps_data 
+            ORDER BY timestamp DESC
+            LIMIT ?
+        ''', (limit * 10,))  # Get more points to group into routes
+        
+        gps_points = cursor.fetchall()
+        conn.close()
+        
+        if not gps_points:
+            return jsonify({'routes': [], 'count': 0})
+        
+        # Group GPS points into routes based on time gaps and activity changes
+        routes = []
+        current_route = None
+        
+        for point in reversed(gps_points):  # Process in chronological order
+            point_data = {
+                'id': point[0],
+                'lat': point[1],
+                'lon': point[2],
+                'speed': point[3],
+                'timestamp': point[4],
+                'activity': point[5],
+                'is_anomaly': bool(point[6]),
+                'created_at': point[7]
+            }
+            
+            # Start new route if:
+            # 1. No current route
+            # 2. Time gap > 10 minutes
+            # 3. Activity change from/to stationary
+            if (current_route is None or 
+                point_data['timestamp'] - current_route['points'][-1]['timestamp'] > 600 or
+                (current_route['activity'] == 'stationary' and point_data['activity'] != 'stationary') or
+                (current_route['activity'] != 'stationary' and point_data['activity'] == 'stationary')):
+                
+                # Finish previous route
+                if current_route and len(current_route['points']) > 1:
+                    current_route = finish_route(current_route)
+                    routes.append(current_route)
+                
+                # Start new route
+                current_route = {
+                    'points': [point_data],
+                    'activity': point_data['activity'],
+                    'start_time': point_data['timestamp'],
+                    'anomalies': 1 if point_data['is_anomaly'] else 0
+                }
+            else:
+                # Add to current route
+                current_route['points'].append(point_data)
+                if point_data['is_anomaly']:
+                    current_route['anomalies'] += 1
+                
+                # Update main activity (most frequent non-stationary activity)
+                if point_data['activity'] != 'stationary':
+                    current_route['activity'] = point_data['activity']
+        
+        # Finish last route
+        if current_route and len(current_route['points']) > 1:
+            current_route = finish_route(current_route)
+            routes.append(current_route)
+        
+        # Return only the requested number of routes
+        routes = routes[-limit:] if len(routes) > limit else routes
+        routes.reverse()  # Most recent first
+        
+        return jsonify({
+            'routes': routes,
+            'count': len(routes)
+        })
+        
+    except Exception as e:
+        print(f"Error getting routes: {str(e)}")
+        return jsonify({
+            'error': 'Failed to get routes',
+            'details': str(e)
+        }), 500
+
+def finish_route(route):
+    """Calculate route statistics and format for response"""
+    points = route['points']
+    start_point = points[0]
+    end_point = points[-1]
+    
+    # Calculate distance (rough approximation)
+    total_distance = 0
+    for i in range(1, len(points)):
+        lat1, lon1 = points[i-1]['lat'], points[i-1]['lon']
+        lat2, lon2 = points[i]['lat'], points[i]['lon']
+        # Simple distance calculation (for short distances)
+        distance = ((lat2 - lat1) ** 2 + (lon2 - lon1) ** 2) ** 0.5 * 111320  # Convert to meters
+        total_distance += distance
+    
+    # Calculate duration
+    duration_seconds = end_point['timestamp'] - start_point['timestamp']
+    duration_minutes = duration_seconds // 60
+    duration_hours = duration_minutes // 60
+    
+    # Format duration
+    if duration_hours > 0:
+        duration_str = f"{duration_hours}j {duration_minutes % 60}m"
+    else:
+        duration_str = f"{duration_minutes}m"
+    
+    # Calculate average speed
+    if duration_seconds > 0:
+        avg_speed = sum(p['speed'] for p in points) / len(points)
+    else:
+        avg_speed = 0
+    
+    # Format start and end locations (simplified)
+    start_location = f"{start_point['lat']:.4f}, {start_point['lon']:.4f}"
+    end_location = f"{end_point['lat']:.4f}, {end_point['lon']:.4f}"
+    
+    return {
+        'id': f"route_{start_point['timestamp']}",
+        'date': datetime.fromtimestamp(start_point['timestamp']).strftime('%d/%m/%Y'),
+        'time': datetime.fromtimestamp(start_point['timestamp']).strftime('%H:%M'),
+        'duration': duration_str,
+        'distance': f"{total_distance/1000:.1f} km" if total_distance > 1000 else f"{total_distance:.0f} m",
+        'startLocation': start_location,
+        'endLocation': end_location,
+        'mainActivity': route['activity'],
+        'avgSpeed': f"{avg_speed:.1f} km/h",
+        'anomalies': route['anomalies'],
+        'pointCount': len(points)
+    }
+
 # Helper functions
 
 def get_recent_gps_data(limit=50):
@@ -394,7 +542,7 @@ def simple_location_prediction(history, current):
 def classify_activity_simple(speed):
     """Simple activity classification based on speed (in km/h)"""
     # Use the same threshold as our fixed classifier
-    if speed < 2.0:  # Fixed threshold for stationary
+    if speed < 2.5:  # Fixed threshold for stationary
         return 'stationary'
     elif speed < 6.0:
         return 'walking'

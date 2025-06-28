@@ -81,4 +81,7 @@ wheels/
 # Logs
 *.log
 
+# Test/Response files
+*_response.json
+
 app-example
