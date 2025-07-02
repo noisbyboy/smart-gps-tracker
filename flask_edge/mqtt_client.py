@@ -3,7 +3,7 @@ import json
 import time
 import sqlite3
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # Import models using relative paths
 from models.random_forest_model_simple import ActivityClassifier
@@ -11,7 +11,7 @@ from models.var_model import VARLocationPredictor
 from models.dbscan_anomaly_model_simple import AnomalyDetector
 
 # Konfigurasi MQTT
-MQTT_BROKER = "192.168.18.15"   # IP Ubuntu MQTT Server
+MQTT_BROKER = "52.186.170.43"   # IP Ubuntu MQTT Server
 MQTT_PORT = 1883
 MQTT_TOPIC = "gps/data"
 MQTT_USERNAME = "ubuntu"     # Sesuaikan dengan Mosquitto
@@ -19,6 +19,9 @@ MQTT_PASSWORD = "admin"
 
 # Database path
 DATABASE_PATH = 'gps_data.db'
+
+# Indonesia timezone constant
+INDONESIA_TZ = timezone(timedelta(hours=7))
 
 # Inisialisasi model
 activity_classifier = ActivityClassifier()
@@ -45,7 +48,7 @@ def get_recent_gps_data(limit=50):
         return []
 
 def store_gps_data(gps_data, activity=None, is_anomaly=False):
-    """Store GPS data to database"""
+    """Store GPS data to database with timestamp validation"""
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -64,6 +67,46 @@ def store_gps_data(gps_data, activity=None, is_anomaly=False):
         )
         ''')
         
+        # Enhanced timestamp validation (same as in app.py)
+        # Use Indonesia timezone for consistency
+        current_time = datetime.now(INDONESIA_TZ).timestamp()
+        timestamp = int(gps_data.get('timestamp', current_time))
+        
+        # Check for recent duplicate timestamps (within last 10 minutes)
+        cursor.execute('''
+            SELECT COUNT(*) FROM gps_data 
+            WHERE timestamp = ? AND datetime(created_at) >= datetime('now', '-10 minutes')
+        ''', (timestamp,))
+        duplicate_count = cursor.fetchone()[0]
+        
+        # Get the most recent timestamp from database
+        cursor.execute('SELECT timestamp FROM gps_data ORDER BY created_at DESC LIMIT 1')
+        last_result = cursor.fetchone()
+        last_timestamp = last_result[0] if last_result else 0
+        
+        timestamp_age = current_time - timestamp
+        is_too_old = timestamp < (current_time - 3600)        # Older than 1 hour
+        is_too_future = timestamp > (current_time + 300)      # More than 5 minutes in future
+        is_duplicate = duplicate_count > 0                    # Same timestamp used recently
+        is_stale = timestamp <= last_timestamp                # Same or older than last stored
+        
+        if is_too_old or is_too_future or is_duplicate or is_stale:
+            reasons = []
+            if is_too_old:
+                reasons.append(f"too old ({timestamp_age:.1f}s)")
+            if is_too_future:
+                reasons.append(f"future ({-timestamp_age:.1f}s)")
+            if is_duplicate:
+                reasons.append(f"duplicate ({duplicate_count} recent)")
+            if is_stale:
+                reasons.append("stale/older than last")
+            
+            print(f"⚠️ MQTT: Rejecting GPS timestamp {timestamp} - {', '.join(reasons)}")
+            print(f"   Original: {datetime.fromtimestamp(timestamp, tz=INDONESIA_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            print(f"   Using server time: {datetime.fromtimestamp(current_time, tz=INDONESIA_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            
+            timestamp = int(current_time)
+        
         # Insert data dengan konversi tipe yang benar
         cursor.execute('''
         INSERT INTO gps_data (latitude, longitude, speed, activity, timestamp, is_anomaly)
@@ -73,13 +116,13 @@ def store_gps_data(gps_data, activity=None, is_anomaly=False):
             float(gps_data.get('longitude', 0)),
             float(gps_data.get('speed', 0)),
             str(activity or 'unknown'),
-            int(gps_data.get('timestamp', datetime.now().timestamp())),
+            timestamp,
             1 if is_anomaly else 0
         ))
         
         conn.commit()
         conn.close()
-        print(f"💾 Data GPS disimpan: lat={gps_data.get('latitude')}, lon={gps_data.get('longitude')}, timestamp={gps_data.get('timestamp')}")
+        print(f"💾 Data GPS disimpan: lat={gps_data.get('latitude')}, lon={gps_data.get('longitude')}, timestamp={timestamp}")
         return True
     except Exception as e:
         print(f"❌ Error menyimpan GPS data: {e}")
@@ -102,7 +145,7 @@ def on_message(client, userdata, msg):
         payload = json.loads(msg.payload.decode())
         print(f"📥 Data dari ESP32 via MQTT: {payload}")        # Map field names untuk kompatibilitas database
         # Force menggunakan timestamp saat ini untuk data real-time
-        current_timestamp = int(datetime.now().timestamp())
+        current_timestamp = int(datetime.now(INDONESIA_TZ).timestamp())
         gps_data = {
             'latitude': payload.get('lat'),
             'longitude': payload.get('lon'), 

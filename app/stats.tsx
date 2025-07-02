@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-const API_URL = 'http://192.168.18.12:5000/stats';
+const API_URL = 'http://52.186.170.43:5000/stats';
 const { width } = Dimensions.get('window');
 
 interface StatItem {
@@ -81,7 +81,7 @@ const StatsScreen = () => {  const router = useRouter();
       <View style={styles.trendContainer}>
         <Text style={styles.trendLabel}>{label}</Text>
         <View style={styles.trendValue}>
-          <Text style={styles.trendNumber}>{current}{unit}</Text>
+          <Text style={styles.trendNumber}>{current != null ? String(current) : 'N/A'}{unit}</Text>
           {!isNeutral && (
             <View style={[styles.trendBadge, { backgroundColor: isPositive ? '#34C759' : '#FF3B30' }]}>
               <Text style={styles.trendBadgeText}>
@@ -127,7 +127,7 @@ const StatsScreen = () => {  const router = useRouter();
         {icon && <Text style={styles.statIcon}>{icon}</Text>}
         <Text style={styles.statLabelText}>{label}</Text>
       </View>
-      <Text style={styles.statValue}>{String(value)}</Text>
+      <Text style={styles.statValue}>{value != null ? String(value) : 'N/A'}</Text>
     </View>
   );
 
@@ -146,7 +146,7 @@ const StatsScreen = () => {  const router = useRouter();
             {icon && <Text style={styles.statIcon}>{icon}</Text>}
             <Text style={styles.progressLabelText}>{label}</Text>
           </View>
-          <Text style={styles.progressValue}>{String(value)}</Text>
+          <Text style={styles.progressValue}>{value != null ? String(value) : 'N/A'}</Text>
         </View>
         <View style={styles.progressBarBg}>
           <View 
@@ -173,7 +173,7 @@ const StatsScreen = () => {  const router = useRouter();
         <Text style={[styles.metricIcon, { color }]}>{icon}</Text>
         <View style={styles.metricContent}>
           <Text style={styles.metricTitle}>{title}</Text>
-          <Text style={[styles.metricValue, { color }]}>{value}</Text>
+          <Text style={[styles.metricValue, { color }]}>{value != null ? String(value) : 'N/A'}</Text>
           {subtitle && <Text style={styles.metricSubtitle}>{subtitle}</Text>}
         </View>
       </View>
@@ -190,7 +190,7 @@ const StatsScreen = () => {  const router = useRouter();
         <View style={[styles.donutChart, { width: size, height: size }]}>
           {/* Simple circular visualization */}
           <View style={[styles.donutCenter, { width: size * 0.5, height: size * 0.5, borderRadius: size * 0.25 }]}>
-            <Text style={styles.donutCenterText}>{total}</Text>
+            <Text style={styles.donutCenterText}>{total != null ? String(total) : '0'}</Text>
             <Text style={styles.donutCenterLabel}>Total</Text>
           </View>
           {/* Outer ring representing the largest value */}
@@ -279,7 +279,9 @@ const StatsScreen = () => {  const router = useRouter();
           icon="🚀"
           color="#FF9500"
         />
-      </View>{/* Activity Distribution with Progress Bars */}
+      </View>
+
+      {/* Activity Distribution with Progress Bars */}
       <StatCard title="Activity Distribution" icon="🚶">
         {stats.activity_distribution && stats.activity_distribution.length > 0 ? (
           stats.activity_distribution.map((item: StatItem) => {
@@ -345,8 +347,10 @@ const StatsScreen = () => {  const router = useRouter();
         ) : (
           <Text style={styles.noDataText}>No speed data available</Text>
         )}
-      </StatCard>      {/* Data Summary and System Status */}
-      <StatCard title="System Status" icon="�">
+      </StatCard>
+
+      {/* Data Summary and System Status */}
+      <StatCard title="System Status" icon="💻">
         <StatRow
           icon="📌"
           label="Total Data Points"
@@ -361,7 +365,8 @@ const StatsScreen = () => {  const router = useRouter();
           icon="📡"
           label="System Status"
           value="Active"
-        />        <View style={styles.generatedAt}>
+        />
+        <View style={styles.generatedAt}>
           <Text style={styles.generatedAtText}>
             Last updated: {new Date(stats.generated_at).toLocaleString()}
           </Text>

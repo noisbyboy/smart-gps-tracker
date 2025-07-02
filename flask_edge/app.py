@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import traceback
 
@@ -19,6 +19,9 @@ from models.dbscan_anomaly_model_simple import AnomalyDetector
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React Native app
+
+# Indonesia timezone constant
+INDONESIA_TZ = timezone(timedelta(hours=7))
 
 # Initialize ML models
 var_predictor = VARLocationPredictor()
@@ -169,7 +172,7 @@ def predict():
             'lat': float(data['lat']),
             'lon': float(data['lon']),
             'speed': float(data.get('speed', 0)),
-            'timestamp': int(data.get('timestamp', datetime.now().timestamp()))
+            'timestamp': int(data.get('timestamp', datetime.now(INDONESIA_TZ).timestamp()))
         }
         
         # Get recent GPS history for context
@@ -223,7 +226,7 @@ def predict():
                 'anomaly_confidence': 0.92    # DBSCAN confidence (can be enhanced later)
             },
             'metadata': {
-                'timestamp': datetime.now().isoformat(),
+                'timestamp': datetime.now(INDONESIA_TZ).isoformat(),
                 'data_points_used': len(recent_history),
                 'model_versions': {
                     'var': '1.0',
@@ -306,7 +309,7 @@ def classify_activity_endpoint():
         return jsonify({
             'activity': activity,
             'speed': data['speed'],
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now(INDONESIA_TZ).isoformat()
         })
         
     except Exception as e:
@@ -332,7 +335,7 @@ def detect_anomaly_endpoint():
         return jsonify({
             'is_anomaly': bool(is_anomaly),  # Convert numpy.bool_ to Python bool
             'current_location': current_location,
-            'analysis_timestamp': datetime.now().isoformat()
+            'analysis_timestamp': datetime.now(INDONESIA_TZ).isoformat()
         })
         
     except Exception as e:
@@ -344,7 +347,7 @@ def test_connection():
     return jsonify({
         'status': 'ok',
         'message': 'Flask server is running',
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.now(INDONESIA_TZ).isoformat(),
         'server_ip': request.environ.get('SERVER_NAME'),
         'client_ip': request.environ.get('REMOTE_ADDR')
     })
@@ -354,6 +357,8 @@ def get_routes():
     """Get route-based history by grouping GPS points into meaningful trips"""
     try:
         limit = request.args.get('limit', 10, type=int)
+        min_points = request.args.get('min_points', 2, type=int)  # Minimum points per route
+        time_gap = request.args.get('time_gap', 300, type=int)    # Time gap in seconds (default 5 min)
         
         conn = sqlite3.connect('gps_data.db')
         cursor = conn.cursor()
@@ -364,7 +369,7 @@ def get_routes():
             FROM gps_data 
             ORDER BY timestamp DESC
             LIMIT ?
-        ''', (limit * 10,))  # Get more points to group into routes
+        ''', (limit * 50,))  # Get much more points to ensure we have recent data
         
         gps_points = cursor.fetchall()
         conn.close()
@@ -390,15 +395,21 @@ def get_routes():
             
             # Start new route if:
             # 1. No current route
-            # 2. Time gap > 10 minutes
-            # 3. Activity change from/to stationary
+            # 2. Time gap > specified time_gap
+            # 3. Activity change (any activity change)
+            # 4. Split long stationary routes (every 10 points for recent data)
+            current_time = point_data['timestamp']
+            is_recent_data = (current_time > (datetime.now(INDONESIA_TZ).timestamp() - 86400))  # Last 24 hours
+            
             if (current_route is None or 
-                point_data['timestamp'] - current_route['points'][-1]['timestamp'] > 600 or
-                (current_route['activity'] == 'stationary' and point_data['activity'] != 'stationary') or
-                (current_route['activity'] != 'stationary' and point_data['activity'] == 'stationary')):
+                point_data['timestamp'] - current_route['points'][-1]['timestamp'] > time_gap or
+                current_route['activity'] != point_data['activity'] or  # Any activity change
+                (current_route['activity'] == 'stationary' and point_data['activity'] == 'stationary' and 
+                 ((is_recent_data and len(current_route['points']) > 10) or 
+                  (not is_recent_data and len(current_route['points']) > 50)))):  # Split recent data more frequently
                 
                 # Finish previous route
-                if current_route and len(current_route['points']) > 1:
+                if current_route and len(current_route['points']) >= min_points:
                     current_route = finish_route(current_route)
                     routes.append(current_route)
                 
@@ -420,7 +431,7 @@ def get_routes():
                     current_route['activity'] = point_data['activity']
         
         # Finish last route
-        if current_route and len(current_route['points']) > 1:
+        if current_route and len(current_route['points']) >= min_points:
             current_route = finish_route(current_route)
             routes.append(current_route)
         
@@ -476,10 +487,16 @@ def finish_route(route):
     start_location = f"{start_point['lat']:.4f}, {start_point['lon']:.4f}"
     end_location = f"{end_point['lat']:.4f}, {end_point['lon']:.4f}"
     
+    # Convert UTC timestamp to Indonesia timezone (UTC+7)
+    start_time_local = datetime.fromtimestamp(start_point['timestamp'], tz=INDONESIA_TZ)
+    
+    # Generate unique ID using timestamp and point count to avoid duplicates
+    unique_id = f"route_{start_point['timestamp']}_{len(points)}_{hash(str(start_point['lat']) + str(start_point['lon'])) % 10000}"
+    
     return {
-        'id': f"route_{start_point['timestamp']}",
-        'date': datetime.fromtimestamp(start_point['timestamp']).strftime('%d/%m/%Y'),
-        'time': datetime.fromtimestamp(start_point['timestamp']).strftime('%H:%M'),
+        'id': unique_id,
+        'date': start_time_local.strftime('%d/%m/%Y'),
+        'time': start_time_local.strftime('%H:%M'),
         'duration': duration_str,
         'distance': f"{total_distance/1000:.1f} km" if total_distance > 1000 else f"{total_distance:.0f} m",
         'startLocation': start_location,
@@ -506,16 +523,63 @@ def get_recent_gps_data(limit=50):
         return []
 
 def store_gps_data(gps_data, activity, is_anomaly):
-    """Store GPS data in database"""
+    """Store GPS data in database with enhanced timestamp validation"""
     try:
         conn = sqlite3.connect('gps_data.db')
         cursor = conn.cursor()
+        
+        # Use Indonesia timezone for consistency
+        current_time = datetime.now(INDONESIA_TZ).timestamp()
+        timestamp = gps_data['timestamp']
+        
+        # Enhanced validation for real-time GPS tracking:
+        # 1. Not older than 1 hour (3600 seconds) - for active tracking
+        # 2. Not more than 5 minutes in the future (300 seconds) - account for clock drift
+        # 3. Check for duplicate timestamps (same timestamp used recently)
+        # 4. Check for "stuck" timestamps (same timestamp repeated multiple times)
+        
+        # Check for recent duplicate timestamps (within last 10 minutes)
+        cursor.execute('''
+            SELECT COUNT(*) FROM gps_data 
+            WHERE timestamp = ? AND datetime(created_at) >= datetime('now', '-10 minutes')
+        ''', (timestamp,))
+        duplicate_count = cursor.fetchone()[0]
+        
+        # Get the most recent timestamp from database
+        cursor.execute('SELECT timestamp FROM gps_data ORDER BY created_at DESC LIMIT 1')
+        last_result = cursor.fetchone()
+        last_timestamp = last_result[0] if last_result else 0
+        
+        timestamp_age = current_time - timestamp
+        is_too_old = timestamp < (current_time - 3600)        # Older than 1 hour
+        is_too_future = timestamp > (current_time + 300)      # More than 5 minutes in future
+        is_duplicate = duplicate_count > 0                    # Same timestamp used recently
+        is_stale = timestamp <= last_timestamp                # Same or older than last stored
+        
+        if is_too_old or is_too_future or is_duplicate or is_stale:
+            reasons = []
+            if is_too_old:
+                reasons.append(f"too old ({timestamp_age:.1f}s)")
+            if is_too_future:
+                reasons.append(f"future ({-timestamp_age:.1f}s)")
+            if is_duplicate:
+                reasons.append(f"duplicate ({duplicate_count} recent)")
+            if is_stale:
+                reasons.append("stale/older than last")
+            
+            print(f"⚠️ Rejecting GPS timestamp {timestamp} - {', '.join(reasons)}")
+            print(f"   Original: {datetime.fromtimestamp(timestamp, tz=INDONESIA_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            print(f"   Using server time: {datetime.fromtimestamp(current_time, tz=INDONESIA_TZ).strftime('%Y-%m-%d %H:%M:%S %Z')}")
+            
+            timestamp = current_time
+        
         cursor.execute(
             'INSERT INTO gps_data (latitude, longitude, speed, timestamp, activity, is_anomaly) VALUES (?, ?, ?, ?, ?, ?)',
-            (gps_data['lat'], gps_data['lon'], gps_data['speed'], gps_data['timestamp'], activity, is_anomaly)
+            (gps_data['lat'], gps_data['lon'], gps_data['speed'], timestamp, activity, is_anomaly)
         )
         conn.commit()
         conn.close()
+        
     except Exception as e:
         print(f"Database storage error: {e}")
 
@@ -618,7 +682,7 @@ def get_statistics():
             'recent_activity': recent_activity,
             'total_data_points': total_points,
             'speed_by_activity': speed_by_activity,
-            'generated_at': datetime.now().isoformat()
+            'generated_at': datetime.now(INDONESIA_TZ).isoformat()
         }
         
         return jsonify(stats)
@@ -660,3 +724,48 @@ if __name__ == '__main__':
 
     print("🚀 Starting Flask server...")
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+
+@app.route('/debug/timestamps', methods=['GET'])
+def debug_timestamps():
+    """Debug endpoint to check timestamp conversion"""
+    try:
+        conn = sqlite3.connect('gps_data.db')
+        cursor = conn.cursor()
+        
+        # Get latest 10 records
+        cursor.execute('''
+            SELECT id, timestamp, activity, created_at
+            FROM gps_data 
+            ORDER BY timestamp DESC
+            LIMIT 10
+        ''')
+        
+        records = cursor.fetchall()
+        conn.close()
+        
+        debug_data = []
+        
+        for record in records:
+            timestamp = record[1]
+            utc_time = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            indonesia_time = utc_time.astimezone(INDONESIA_TZ)
+            
+            debug_data.append({
+                'id': record[0],
+                'raw_timestamp': timestamp,
+                'utc_time': utc_time.isoformat(),
+                'indonesia_time': indonesia_time.isoformat(),
+                'date_formatted': indonesia_time.strftime('%d/%m/%Y'),
+                'time_formatted': indonesia_time.strftime('%H:%M'),
+                'activity': record[2],
+                'created_at': record[3]
+            })
+        
+        return jsonify({
+            'debug_data': debug_data,
+            'server_time_utc': datetime.now(timezone.utc).isoformat(),
+            'server_time_indonesia': datetime.now(INDONESIA_TZ).isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

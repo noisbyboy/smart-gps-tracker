@@ -11,7 +11,7 @@ import PredictionMarker from '../components/PredictionMarker';
 import { GPSData, PredictionResponse } from '../utils/types';
 
 // API Configuration
-const API_BASE_URL = 'http://192.168.18.12:5000';
+const API_BASE_URL = 'http://52.186.170.43:5000';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -145,7 +145,22 @@ export default function HomeScreen() {
         const newHistory = [...prev, gpsData];
         return newHistory.slice(-50);
       });
-      setShowAlert(result.is_anomaly || false);
+      
+      // More conservative anomaly detection - only show if speed is very unusual
+      const isRealAnomaly = result.is_anomaly && (
+        gpsData.speed > 120 || // Very high speed
+        (gpsData.speed > 80 && result.activity === 'walking') || // Walking at high speed
+        (gpsData.speed === 0 && result.activity === 'driving') // Driving with no speed
+      );
+      
+      console.log('Anomaly check:', { 
+        api_anomaly: result.is_anomaly, 
+        speed: gpsData.speed, 
+        activity: result.activity,
+        final_anomaly: isRealAnomaly 
+      });
+      
+      setShowAlert(isRealAnomaly);
     } catch (err) {
       console.error("Failed to fetch prediction:", err);
       if (err instanceof Error) {
@@ -170,7 +185,7 @@ export default function HomeScreen() {
     const fallbackPrediction: PredictionResponse = {
       activity: 'stationary',
       predicted_location: { lat: -7.0051, lon: 110.4381 }, // Small offset from Semarang
-      is_anomaly: false,
+      is_anomaly: false, // Force false for fallback data
     };
 
     setLocation(fallbackLocation);
@@ -183,7 +198,7 @@ export default function HomeScreen() {
       if (isDuplicate) return prev;
       return [...prev, fallbackLocation].slice(-50);
     });
-    setShowAlert(false);
+    setShowAlert(false); // Never show anomaly alert for fallback data
   };
 
   return (
