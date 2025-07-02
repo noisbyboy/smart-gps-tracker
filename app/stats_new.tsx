@@ -722,7 +722,7 @@ const StatsScreen = () => {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.contentWrapper}>
-        {/* Key Metrics Overview - Now placed at the top */}
+        {/* Key Metrics Overview pada posisi paling atas */}
         <View style={styles.metricsRow}>
           <MetricCard
             title="Total Points"
@@ -756,15 +756,15 @@ const StatsScreen = () => {
           />
         </View>
         
-        {/* Today's Summary Widget - Moved after metrics */}
+        {/* Today's Summary Widget dipindahkan ke bawah metrik */}
         <TodaySummaryWidget />
 
-        {/* Speed Over Time Graph */}
+        {/* NEW: Speed Over Time Graph */}
         <StatCard title="Speed Over Time" icon="📈">
           <SpeedOverTimeGraph />
         </StatCard>
 
-        {/* Activity Distribution Bar Chart */}
+        {/* NEW: Activity Distribution Bar Chart (replaces progress bars) */}
         <StatCard title="Activity Distribution" icon="🧩">
           {stats.activity_distribution && stats.activity_distribution.length > 0 ? (
             <ActivityBarChart data={stats.activity_distribution} />

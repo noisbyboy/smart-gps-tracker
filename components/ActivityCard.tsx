@@ -1,15 +1,19 @@
 // File: components/ActivityCard.tsx
 
+import { BlurView } from 'expo-blur';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface ActivityCardProps {
   activity: string;
+  confidence?: number; // Optional confidence level (0-100)
+  speed?: number; // Speed in km/h
 }
 
-const ActivityCard: React.FC<ActivityCardProps> = ({ activity }) => {
+const ActivityCard: React.FC<ActivityCardProps> = ({ activity, confidence, speed }) => {
   // Safety check untuk memastikan activity tidak null/undefined
   const safeActivity = activity || 'unknown';
+  const safeConfidence = confidence || 0;
   const getActivityIcon = (activityType: string) => {
     switch (activityType.toLowerCase()) {
       case 'motor':
@@ -65,14 +69,23 @@ const ActivityCard: React.FC<ActivityCardProps> = ({ activity }) => {
   };
 
   return (
-    <View style={styles.card}>      <View style={styles.iconContainer}>
+    <BlurView intensity={80} tint="light" style={styles.card}>
+      <View style={styles.iconContainer}>
         <Text style={styles.icon}>{getActivityIcon(safeActivity)}</Text>
       </View>
       <View style={styles.textContainer}>
         <Text style={styles.label}>Activity</Text>
         <Text style={styles.activity}>{getActivityLabel(safeActivity)}</Text>
+        {confidence && confidence > 0 && (
+          <Text style={styles.confidence}>
+            {confidence.toFixed(0)}% confident
+          </Text>
+        )}
+        {typeof speed === 'number' && (
+          <Text style={styles.speed}>{speed.toFixed(1)} km/h</Text>
+        )}
       </View>
-    </View>
+    </BlurView>
   );
 };
 
@@ -82,13 +95,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'white',
     borderRadius: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 4,
+    overflow: 'hidden', // Important for BlurView border radius
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
     minWidth: 160,
     maxWidth: 200,
   },
@@ -103,13 +113,25 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 12,
-    color: '#666',
+    color: 'rgba(0, 0, 0, 0.6)',
     marginBottom: 2,
   },
   activity: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: 'rgba(0, 0, 0, 0.85)',
+  },
+  confidence: {
+    fontSize: 11,
+    color: '#005EB8',
+    marginTop: 1,
+    fontWeight: '500',
+  },
+  speed: {
+    fontSize: 13,
+    color: '#1B9C2F',
+    fontWeight: '600',
+    marginTop: 2,
   },
 });
 

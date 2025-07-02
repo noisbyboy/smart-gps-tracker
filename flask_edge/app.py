@@ -187,7 +187,7 @@ def predict():
             print(f"VAR prediction error: {e}")
             # Fallback: simple linear extrapolation
             predicted_location = simple_location_prediction(recent_history, current_gps)
-          # 2. Random Forest: Classify activity
+        # 2. Random Forest: Classify activity
         try:
             # Force use simple classification for consistency with database update
             activity = classify_activity_simple(current_gps['speed'])
@@ -195,14 +195,25 @@ def predict():
             print(f"Activity classification error: {e}")
             activity = classify_activity_simple(current_gps['speed'])
         
-        # 3. DBSCAN: Detect anomalies
+        # 3. Enhanced DBSCAN: Context-aware anomaly detection
         try:
             is_anomaly = anomaly_detector.detect_anomaly(
-                current_gps, recent_history
+                current_gps, recent_history, activity
+            )
+            
+            # Get detailed anomaly analysis
+            anomaly_analysis = anomaly_detector.get_anomaly_confidence(
+                current_gps, recent_history, activity
             )
         except Exception as e:
             print(f"Anomaly detection error: {e}")
             is_anomaly = False
+            anomaly_analysis = {
+                'confidence': 0.5,
+                'is_anomaly': False,
+                'reason': f'Error: {str(e)}',
+                'activity': activity
+            }
           # Store data in database
         store_gps_data(current_gps, activity, is_anomaly)
         
@@ -215,7 +226,7 @@ def predict():
             print(f"Activity confidence error: {e}")
             activity_confidence = 0.85
         
-        # Prepare response
+        # Prepare enhanced response with detailed anomaly analysis
         response = {
             'activity': activity,
             'predicted_location': predicted_location,
@@ -223,15 +234,24 @@ def predict():
             'confidence_scores': {
                 'activity_confidence': float(activity_confidence),  # Ensure Python float
                 'prediction_accuracy': 0.78,  # VAR model confidence (can be enhanced later)
-                'anomaly_confidence': 0.92    # DBSCAN confidence (can be enhanced later)
+                'anomaly_confidence': float(anomaly_analysis.get('confidence', 0.5))  # Enhanced anomaly confidence
+            },
+            'anomaly_details': {
+                'threshold_used': anomaly_analysis.get('threshold_used', 1000),
+                'min_distance': anomaly_analysis.get('min_distance', 0),
+                'near_frequent_location': anomaly_analysis.get('near_frequent_location', False),
+                'speed': current_gps['speed'],
+                'reason': anomaly_analysis.get('reason', 'Normal analysis')
             },
             'metadata': {
                 'timestamp': datetime.now(INDONESIA_TZ).isoformat(),
                 'data_points_used': len(recent_history),
+                'training_points': anomaly_analysis.get('training_points', 0),
+                'frequent_locations': anomaly_analysis.get('frequent_locations_count', 0),
                 'model_versions': {
                     'var': '1.0',
                     'random_forest': '1.0', 
-                    'dbscan': '1.0'
+                    'dbscan': '2.0'  # Updated version with context awareness
                 }
             }
         }

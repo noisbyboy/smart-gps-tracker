@@ -20,6 +20,7 @@ export default function HomeScreen() {
   const [history, setHistory] = useState<GPSData[]>([]);
   const [showAlert, setShowAlert] = useState(false);
   const [isScreenFocused, setIsScreenFocused] = useState(true);
+  const [isConnected, setIsConnected] = useState(true); // Connection status
 
   useEffect(() => {
     navigation.setOptions({ title: 'TrackAI' });
@@ -131,7 +132,29 @@ export default function HomeScreen() {
       };
 
       setLocation(gpsData);
-      setPrediction(result);
+      
+      // Add stable confidence based on activity type if not provided by API
+      const getStableConfidence = (activity: string) => {
+        switch (activity.toLowerCase()) {
+          case 'stationary':
+          case 'still': return 95; // High confidence for stationary
+          case 'walking': return 88;
+          case 'car':
+          case 'driving': return 92;
+          case 'cycling': return 85;
+          case 'motor': return 90;
+          default: return 75; // Lower confidence for unknown activities
+        }
+      };
+      
+      const predictionWithConfidence = {
+        ...result,
+        confidence: result.confidence_scores?.activity_confidence 
+                    ? result.confidence_scores.activity_confidence * 100 // Convert to percentage
+                    : getStableConfidence(result.activity || 'unknown')
+      };
+      
+      setPrediction(predictionWithConfidence);
       setHistory((prev) => {
         // Avoid duplicate entries by checking timestamp
         const isDuplicate = prev.some(item => 
@@ -161,7 +184,9 @@ export default function HomeScreen() {
       });
       
       setShowAlert(isRealAnomaly);
+      setIsConnected(true); // Set connected if fetch success
     } catch (err) {
+      setIsConnected(false); // Set disconnected if fetch fails
       console.error("Failed to fetch prediction:", err);
       if (err instanceof Error) {
         console.error("Error details:", {
@@ -184,6 +209,7 @@ export default function HomeScreen() {
 
     const fallbackPrediction: PredictionResponse = {
       activity: 'stationary',
+      confidence: 95, // High confidence for stationary fallback
       predicted_location: { lat: -7.0051, lon: 110.4381 }, // Small offset from Semarang
       is_anomaly: false, // Force false for fallback data
     };
@@ -200,6 +226,20 @@ export default function HomeScreen() {
     });
     setShowAlert(false); // Never show anomaly alert for fallback data
   };
+
+  useEffect(() => {
+    navigation.setOptions({ 
+      title: 'TrackAI',
+      headerRight: () => (
+        <View style={styles.connectionStatus}>
+          <View style={[styles.statusDot, {backgroundColor: isConnected ? '#2ecc40' : '#ff4136'}]} />
+          <Text style={[styles.statusText, {color: isConnected ? '#2ecc40' : '#ff4136'}]}>
+            {isConnected ? 'Connected' : 'Disconnected'}
+          </Text>
+        </View>
+      ),
+    });
+  }, [isConnected]);
 
   return (
     <View style={styles.container}>
@@ -243,12 +283,16 @@ export default function HomeScreen() {
 
       {prediction && prediction.activity ? (
         <View key="activity-card-container" style={styles.activityCardContainer}>
-          <ActivityCard activity={String(prediction.activity || 'unknown')} />
+          <ActivityCard 
+            activity={String(prediction.activity || 'unknown')} 
+            confidence={prediction.confidence}
+            speed={location?.speed}
+          />
         </View>
       ) : null}
 
       <TouchableOpacity
-        style={styles.fabButtonLeft}
+        style={styles.fabButtonStats}
         onPress={() => router.push('/stats')}
       >
         <Text style={styles.fabButtonText}>📊</Text>
@@ -276,10 +320,10 @@ const styles = StyleSheet.create({
   },
   activityCardContainer: {
     position: 'absolute',
-    bottom: 30,
+    bottom: 40,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: 'center', // Center the ActivityCard horizontally
   },
   fabButton: {
     position: 'absolute',
@@ -297,10 +341,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  fabButtonLeft: {
+  fabButtonStats: {
     position: 'absolute',
-    bottom: 30,
-    left: 20,
+    bottom: 96, // Positioned above the history button (30 + 56 + 10 margin)
+    right: 20,
     backgroundColor: '#34C759',
     width: 56,
     height: 56,
@@ -316,5 +360,20 @@ const styles = StyleSheet.create({
   fabButtonText: {
     fontSize: 24,
     color: '#fff',
+  },
+  connectionStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 4,
+  },
+  statusText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -36,11 +36,11 @@ Membangun sistem pelacakan GPS berbasis AI yang:
 
 ### � **Hardware Components**
 
-| Komponen | Fungsi | Status |
-|----------|--------|--------|
-| **ESP32** | Mikrokontroler untuk pembacaan GPS dan transmisi MQTT | ✅ Ready |
-| **GPS NEO-7M** | Sensor GPS untuk mendapatkan koordinat (lat, lon, altitude) | ✅ Ready |
-| **MQTT Broker** | Message broker untuk komunikasi real-time ESP32 → Flask | ✅ Ready |
+| Komponen | Fungsi | 
+|----------|--------|
+| **ESP32** | Mikrokontroler untuk pembacaan GPS dan transmisi MQTT | 
+| **GPS NEO-7M** | Sensor GPS untuk mendapatkan koordinat (lat, lon, altitude) | 
+| **MQTT Broker** | Message broker untuk komunikasi real-time ESP32 → Flask | 
 
 ### �🛠️ **Software Stack**
 
@@ -98,15 +98,17 @@ graph TB
 |-------|-----------|-------|--------|--------|
 | **Location Prediction** | VAR (Vector Autoregression) | Koordinat GPS time series | Prediksi posisi berikutnya | ✅ Implemented |
 | **Activity Recognition** | Random Forest Classifier | GPS data (speed, acceleration) | Jenis aktivitas (walking/cycling/motor/car/stationary) | ✅ Implemented |
-| **Route Anomaly Detection** | DBSCAN + Distance Analysis | Koordinat GPS, rute historis | Boolean anomali + confidence score | ✅ Implemented |
+| **Route Anomaly Detection** | Context-Aware Detection + Dynamic Thresholds | Koordinat GPS, aktivitas, frequent locations | Boolean anomali + detailed analysis | ✅ Enhanced v2.0 |
 
 ### 🎯 **Smart Features**
 
 - **🔮 Predictive Tracking**: Prediksi lokasi 5-10 menit ke depan menggunakan VAR
 - **🚶 Smart Activity Detection**: Otomatis mengenali moda transportasi dengan Random Forest
-- **🚨 Intelligent Alerts**: Notifikasi cerdas saat terdeteksi anomali rute
-- **📈 Route Learning**: Sistem belajar dari pola perjalanan pengguna
-- **📍 Real-time Processing**: Edge computing untuk prediksi instant
+- **🚨 Context-Aware Anomaly Detection**: Sistem deteksi anomali yang tidak flag lokasi rumah/kantor
+- **📈 Route Learning**: Sistem belajar frequent locations dan pola perjalanan pengguna
+- **📍 Real-time Processing**: Edge computing untuk prediksi instant dengan confidence scoring
+- **🏠 Frequent Location Recognition**: Toleransi GPS noise untuk home/office locations
+- **⚡ Dynamic Thresholds**: Threshold berbeda untuk setiap aktivitas (stationary vs driving)
 
 ---
 
@@ -120,16 +122,20 @@ graph TB
 - **Activity Status Card** di bagian bawah dengan emoji indicators
 
 ### 📊 **Data Analytics**
-- **Live Dashboard** dengan GPS metrics real-time
-- **Route History** dengan filtering dan search capabilities
-- **Activity Statistics** dan insights berdasarkan ML predictions
-- **Anomaly Detection Reports** dengan confidence scores
+- **Live Dashboard** dengan GPS metrics real-time dan glassmorphism UI
+- **Today's Summary** dengan key metrics (Total Points, Activities, Anomalies)
+- **Advanced Analytics** (Max Speed, Active Hours, Moving Ratio, Data Age)
+- **Activity Bar Chart** dan **Speed Timeline Graph** dengan real backend data
+- **Route History** dengan filtering dan route-based grouping
+- **Enhanced Statistics** dengan activity distribution dan anomaly insights
+- **Connection Status** monitoring untuk Flask backend dengan real-time indicators
 
 ### 🔔 **Notification System**
-- **Real-time Anomaly Alerts** ketika DBSCAN mendeteksi pattern anomali
+- **Smart Anomaly Alerts** dengan context-aware filtering (tidak alert untuk home/office)
 - **Activity Change Notifications** ketika Random Forest mendeteksi perubahan moda transportasi
-- **Connection Status** monitoring untuk Flask backend
-- **Battery Optimization** dengan smart refresh intervals
+- **Enhanced Connection Status** dengan glassmorphism UI dan real-time indicators
+- **Detailed Anomaly Analysis** dengan threshold info, frequent location status, dan reasoning
+- **Battery Optimization** dengan smart refresh intervals dan efficient data polling
 
 ---
 
@@ -256,9 +262,12 @@ smart-gps-tracker/
 | Endpoint | Method | Description | Response |
 |----------|--------|-------------|----------|
 | `/` | GET | Health check | Status message |
-| `/predict` | POST | Get AI predictions | Location, activity, anomaly |
+| `/predict` | POST | Get AI predictions dengan enhanced anomaly analysis | Location, activity, anomaly + detailed confidence |
 | `/history` | GET | Fetch GPS history | Array of GPS data |
-| `/history?limit=N` | GET | Fetch latest N records | Limited GPS data |
+| `/routes` | GET | Route-based history grouping | Grouped GPS data by trips |
+| `/stats` | GET | Advanced analytics dan statistics | Activity distribution, anomaly stats, speed metrics |
+| `/activity` | POST | Activity classification endpoint | Activity type dengan confidence |
+| `/anomaly` | POST | Context-aware anomaly detection | Enhanced anomaly analysis |
 | `/test` | GET | Test connection | Test response |
 
 ### **Example API Usage**
@@ -299,7 +308,26 @@ interface PredictionResponse {
     lat: number;
     lon: number;
   };
-  is_anomaly: boolean;       // DBSCAN anomaly detection result
+  is_anomaly: boolean;       // Context-aware anomaly detection result
+  confidence_scores: {       // Enhanced confidence metrics
+    activity_confidence: number;
+    prediction_accuracy: number; 
+    anomaly_confidence: number;
+  };
+  anomaly_details: {         // Detailed anomaly analysis
+    threshold_used: number;
+    min_distance: number;
+    near_frequent_location: boolean;
+    speed: number;
+    reason: string;
+  };
+  metadata: {               // Enhanced metadata
+    timestamp: string;
+    data_points_used: number;
+    training_points: number;
+    frequent_locations: number;
+    model_versions: object;
+  };
 }
 
 // Backend Database Schema
@@ -333,12 +361,13 @@ interface GPSRecord {
 - **Classes**: Walking, Cycling, Motor, Car, Stationary
 - **Library**: `sklearn.ensemble.RandomForestClassifier`
 
-### **3. DBSCAN - Anomaly Detection**
+### **3. Context-Aware Anomaly Detection**
 - **File**: `flask_edge/models/dbscan_anomaly_model_simple.py`
-- **Purpose**: Deteksi penyimpangan rute atau pergerakan tidak normal
-- **Input**: GPS coordinates dalam time window tertentu
-- **Output**: Boolean (normal/anomaly) dengan confidence score
-- **Method**: Distance-based clustering analysis
+- **Purpose**: Deteksi penyimpangan rute dengan context awareness
+- **Features**: Dynamic thresholds, frequent location filtering, activity-based validation
+- **Input**: GPS coordinates, activity type, historical patterns
+- **Output**: Boolean (normal/anomaly) dengan detailed confidence analysis
+- **Method**: Enhanced distance-based detection dengan context filtering
 
 ---
 
@@ -346,21 +375,25 @@ interface GPSRecord {
 
 ### **📱 Mobile App Features**
 - ✅ **Real-time GPS Tracking** - Google Maps dengan live marker updates
-- ✅ **Activity Recognition Display** - Live status card dengan emoji indicators
+- ✅ **Enhanced Activity Recognition** - Live status card dengan glassmorphism UI
 - ✅ **Predicted Location Visualization** - Blue markers untuk VAR predictions
-- ✅ **Route History** - Historical polylines dengan activity color-coding
-- ✅ **Anomaly Alerts** - Real-time popup notifications untuk DBSCAN detections
-- ✅ **Statistics Dashboard** - Analytics berdasarkan ML model outputs
-- ✅ **Data Persistence** - Automatic saving ke SQLite database
+- ✅ **Advanced Route History** - Route-based grouping dengan trip analytics
+- ✅ **Smart Anomaly Alerts** - Context-aware notifications (no false positives)
+- ✅ **Comprehensive Analytics Dashboard** - Today's Summary, bar charts, speed graphs
+- ✅ **Real Backend Data Integration** - All widgets use live data from Flask API
+- ✅ **Enhanced Connection Status** - Real-time indicators dengan glassmorphism design
+- ✅ **Professional UI/UX** - Modern design dengan proper error handling
 
 ### **🤖 Backend AI Features**
 - ✅ **VAR-based Location Prediction** - Time series forecasting
-- ✅ **Random Forest Activity Classification** - Multi-class prediction
-- ✅ **DBSCAN Anomaly Detection** - Unsupervised outlier detection
-- ✅ **SQLite Data Management** - Structured data storage
-- ✅ **RESTful API Design** - JSON response format
+- ✅ **Random Forest Activity Classification** - Multi-class prediction dengan confidence
+- ✅ **Context-Aware Anomaly Detection v2.0** - Enhanced dengan dynamic thresholds
+- ✅ **Frequent Location Learning** - Automatic detection home/office locations
+- ✅ **Advanced SQLite Data Management** - Enhanced timestamp validation
+- ✅ **Enhanced RESTful API Design** - Detailed JSON responses dengan metadata
 - ✅ **Real-time Processing** - Low-latency prediction pipeline
-- ✅ **MQTT Integration Support** - Ready for hardware integration
+- ✅ **Route-based Analytics** - Trip grouping dan advanced statistics
+- ✅ **Production-Ready Error Handling** - Robust fallbacks dan comprehensive logging
 
 ---
 
@@ -407,13 +440,16 @@ pip freeze > requirements.txt
 
 ## 🔮 **Future Enhancements**
 
+- [x] **Context-aware anomaly detection** with dynamic thresholds *(Completed)*
+- [x] **Enhanced mobile UI/UX** with glassmorphism design *(Completed)*
+- [x] **Advanced analytics dashboard** with real backend data *(Completed)*
 - [ ] **Real-time MQTT integration** with ESP32 hardware
-- [ ] **Deep Learning models** (LSTM, CNN) for better prediction
+- [ ] **Deep Learning models** (LSTM, CNN) for better prediction accuracy
 - [ ] **Geofencing** features for location-based alerts
 - [ ] **Multi-user support** with user authentication
-- [ ] **Cloud deployment** (AWS, Google Cloud)
-- [ ] **Advanced analytics** dashboard
-- [ ] **Battery optimization** for mobile app
+- [ ] **Cloud deployment** (AWS, Google Cloud) untuk production scaling
+- [ ] **Battery optimization** dengan advanced power management
+- [ ] **Machine Learning model retraining** otomatis berdasarkan user feedback
 
 ---
 
@@ -442,11 +478,13 @@ Distributed under the MIT License. See `LICENSE` for more information.
 - **Tahun Akademik**: 2024/2025
 
 **🎯 Learning Outcomes:**
-- ✅ Implementasi algoritma Machine Learning (VAR, Random Forest, DBSCAN)
-- ✅ Real-time data processing dan prediction
-- ✅ Mobile application development dengan AI integration
-- ✅ End-to-end system design dan deployment
-- ✅ Database design dan API development
+- ✅ Implementasi algoritma Machine Learning (VAR, Random Forest, Context-Aware Detection)
+- ✅ Real-time data processing dan enhanced prediction dengan confidence scoring
+- ✅ Production-ready mobile application dengan AI integration dan modern UI/UX
+- ✅ End-to-end system design dengan robust error handling dan fallbacks
+- ✅ Advanced database design dan enhanced API development dengan detailed responses
+- ✅ Context-aware AI sistem yang mengerti user behavior patterns
+- ✅ Professional-grade software development dengan comprehensive testing
 
 ---   
 
